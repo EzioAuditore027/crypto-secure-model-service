@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Authorized User Portal - Secure Model Service</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <a href="/" class="brand">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+        <circle cx="12" cy="7" r="4"></circle>
+      </svg>
+      Authorized <span>User Portal</span>
+    </a>
+    <nav class="nav-links">
+      <a href="/user" class="nav-link active">User Portal</a>
+      <a href="/admin" class="nav-link">Admin Portal</a>
+      <a href="/" class="nav-link">Home</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <!-- Cryptographic Channel Status Banner -->
+    <div class="card" style="border-left: 4px solid var(--primary);">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: gap: 1rem;">
+        <div>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">Secure Channel Session:</span>
+          <span id="sessionStatusBadge" class="badge badge-warning" style="margin-left: 0.5rem;">Unauthenticated</span>
+          <div id="sessionInfoText" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">
+            No cryptographic session established. Please complete Handshake below.
+          </div>
+        </div>
+        <button id="btnTerminateSession" class="btn btn-danger" style="display: none; padding: 0.4rem 0.8rem; font-size: 0.85rem;" onclick="terminateSession()">
+          Terminate & Zeroize Keys
+        </button>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Left Column: Steps 1 & 2 (Registration and Handshake) -->
+      <div>
+        <!-- Step 1: User Registration -->
+        <div class="card">
+          <div class="step-indicator">
+            <span class="step-num">1</span>
+            <strong>Registration & Key Generation</strong>
+          </div>
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="regUsername" placeholder="e.g. alice_researcher" value="alice">
+          </div>
+          <div class="form-group">
+            <label>Client KEM Public Key (pk_i)</label>
+            <input type="text" id="regPublicKey" readonly placeholder="Auto-generated on registration...">
+          </div>
+          <button class="btn btn-secondary" style="width: 100%; justify-content: center;" onclick="registerUser()">
+            RequestForRegistration()
+          </button>
+          <div id="regResult" style="margin-top: 0.75rem; font-size: 0.85rem;"></div>
+        </div>
+
+        <!-- Step 2: KEM Handshake & Session Establishment -->
+        <div class="card">
+          <div class="step-indicator">
+            <span class="step-num">2</span>
+            <strong>KEM Secure Channel Handshake</strong>
+          </div>
+          <div class="form-group">
+            <label>User ID (UID)</label>
+            <input type="text" id="loginUid" placeholder="Enter assigned UID (e.g. usr_12345)">
+          </div>
+          <button class="btn" style="width: 100%; justify-content: center;" onclick="performHandshake()">
+            Establish Secure Channel &rarr;
+          </button>
+          <div id="handshakeResult" style="margin-top: 0.75rem; font-size: 0.85rem;"></div>
+        </div>
+
+        <!-- Live Cryptographic Inspector Drawer -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title" style="font-size: 1rem;">Cryptographic Inspector</h3>
+            <span class="badge badge-info">Live Parameters</span>
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+            Inspect ephemeral KEM shared secret, HKDF derived keys, and AEAD tags:
+          </div>
+          <div id="cryptoInspector" class="code-box">Waiting for cryptographic operations...</div>
+        </div>
+      </div>
+
+      <!-- Right Column: Steps 3 & 4 (Encrypted Query & Feedback) -->
+      <div>
+        <!-- Step 3: Encrypted Query -->
+        <div class="card">
+          <div class="step-indicator">
+            <span class="step-num">3</span>
+            <strong>Encrypted Query: Query(x) &rarr; y</strong>
+          </div>
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <label style="margin-bottom: 0;">Input Text x (Message / Email snippet):</label>
+              <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="fillSample(1)">Sample: Phishing</button>
+                <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="fillSample(0)">Sample: Clean</button>
+              </div>
+            </div>
+            <textarea id="queryText" placeholder="Enter suspicious or normal message text to classify..."></textarea>
+          </div>
+          <button id="btnSendQuery" class="btn" style="width: 100%; justify-content: center;" onclick="sendEncryptedQuery()">
+            Encrypt & Query Model M &rarr;
+          </button>
+
+          <!-- Prediction Result Box -->
+          <div id="queryResultCard" style="display: none; margin-top: 1.25rem; background: var(--code-bg); padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 0.85rem; color: var(--text-muted);">Decrypted Model Output (y):</span>
+              <span id="modelVerBadge" class="badge badge-info">v1.0</span>
+            </div>
+            <div id="predLabel" style="font-size: 1.3rem; font-weight: bold; margin: 0.5rem 0;">-</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+              Confidence: <strong id="predConf" style="color: var(--text-main);">-</strong> &bull; 
+              Phishing Prob: <span id="predProb">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Submit Feedback -->
+        <div class="card" id="feedbackCard" style="opacity: 0.5; pointer-events: none;">
+          <div class="step-indicator">
+            <span class="step-num">4</span>
+            <strong>Submit Labeled Feedback: SubmitFeedback(f)</strong>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Provide ground-truth feedback for the last query to update dataset D' for continuous retraining.
+          </p>
+          <div class="form-group">
+            <label>Ground Truth Label (f):</label>
+            <select id="feedbackLabel">
+              <option value="1">1 - True Phishing / Malicious</option>
+              <option value="0">0 - True Legitimate / Clean</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Rating / Observation:</label>
+            <input type="text" id="feedbackRating" placeholder="e.g. Accurate classification / Misclassified edge case">
+          </div>
+          <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="sendEncryptedFeedback()">
+            Encrypt & Submit Feedback &rarr;
+          </button>
+          <div id="feedbackResult" style="margin-top: 0.75rem; font-size: 0.85rem;"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Client State
+    let clientKeys = null;
+    let currentUid = localStorage.getItem('sms_uid') || '';
+    let currentSessionId = null;
+    let sharedSecretB64 = null;
+    let clientSeq = 0;
+    let lastQueryText = '';
+    let lastPredictionLabel = '';
+
+    const SAMPLES = {
+      phishing: "URGENT NOTICE: Your bank account has been locked due to suspicious activity. Click here to verify your identity immediately: http://secure-verify.bank-login.com",
+      clean: "Hi team, please find the meeting notes attached from today's discussion regarding the project architecture and test benchmarks."
+    };
+
+    function fillSample(type) {
+      document.getElementById('queryText').value = type === 1 ? SAMPLES.phishing : SAMPLES.clean;
+    }
+
+    function updateCryptoInspector(logObj) {
+      const box = document.getElementById('cryptoInspector');
+      box.innerText = JSON.stringify(logObj, null, 2);
+    }
+
+    // Step 1: User Registration
+    async function registerUser() {
+      const username = document.getElementById('regUsername').value.trim();
+      const resDiv = document.getElementById('regResult');
+      if (!username) {
+        resDiv.innerHTML = '<span style="color: var(--danger);">Please enter a username.</span>';
+        return;
+      }
+
+      resDiv.innerHTML = '<span style="color: var(--primary);">Generating Lattice Keypair (pk_i, sk_i)...</span>';
+      
+      // Generate client keys via client simulator
+      const keyRes = await fetch('/api/client_helper/generate_keys', { method: 'POST', body: '{}' });
+      clientKeys = await keyRes.json();
+      document.getElementById('regPublicKey').value = clientKeys.public_key_b64.substring(0, 32) + '...';
+
+      // Submit registration
+      const regRes = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: username,
+          user_pk_b64: clientKeys.public_key_b64
+        })
+      });
+      const regData = await regRes.json();
+      if (regData.success) {
+        currentUid = regData.uid;
+        localStorage.setItem('sms_uid', currentUid);
+        document.getElementById('loginUid').value = currentUid;
+        resDiv.innerHTML = `<span style="color: var(--success);">Registered! Assigned UID: <code>${currentUid}</code>.<br>Note: Admin approval required before handshake.</span>`;
+        updateCryptoInspector({
+          action: "KeyGen & Registration",
+          algorithm: "CRYSTALS-Kyber-768 / Lattice-KEM",
+          client_public_key_b64: clientKeys.public_key_b64.substring(0, 48) + "...",
+          assigned_uid: currentUid,
+          status: "pending_approval"
+        });
+      } else {
+        resDiv.innerHTML = `<span style="color: var(--danger);">Registration failed: ${regData.error}</span>`;
+      }
+    }
+
+    // Step 2: KEM Handshake
+    async function performHandshake() {
+      const uid = document.getElementById('loginUid').value.trim();
+      const resDiv = document.getElementById('handshakeResult');
+      if (!uid) {
+        resDiv.innerHTML = '<span style="color: var(--danger);">Please enter a UID.</span>';
+        return;
+      }
+
+      resDiv.innerHTML = '<span style="color: var(--primary);">1. Fetching Server Public Key pk_Server...</span>';
+      
+      // 1. Fetch Server pk
+      const pkRes = await fetch('/api/server/public_key');
+      const pkData = await pkRes.json();
+      const serverPkB64 = pkData.public_key_b64;
+
+      resDiv.innerHTML = '<span style="color: var(--primary);">2. Computing KEM Encapsulation (ct, K) &larr; Encaps(pk_Server)...</span>';
+
+      // 2. Encaps(pk_Server) -> (ct, shared_secret)
+      const encapsRes = await fetch('/api/client_helper/encaps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ server_pk_b64: serverPkB64 })
+      });
+      const encapsData = await encapsRes.json();
+      const kemCtB64 = encapsData.kem_ct_b64;
+      sharedSecretB64 = encapsData.shared_secret_b64;
+
+      resDiv.innerHTML = '<span style="color: var(--primary);">3. Transmitting ciphertext ct to Server...</span>';
+
+      // 3. Send handshake request
+      const hsRes = await fetch('/api/session/handshake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: uid, kem_ct_b64: kemCtB64 })
+      });
+      const hsData = await hsRes.json();
+
+      if (hsData.success) {
+        currentSessionId = hsData.session_id;
+        clientSeq = 0;
+        document.getElementById('sessionStatusBadge').className = 'badge badge-success';
+        document.getElementById('sessionStatusBadge').innerText = 'Secure Channel Active';
+        document.getElementById('sessionInfoText').innerHTML = `Active Session: <code>${currentSessionId}</code> &bull; User: <code>${uid}</code>`;
+        document.getElementById('btnTerminateSession').style.display = 'inline-flex';
+        resDiv.innerHTML = `<span style="color: var(--success);">&#10004; Handshake complete! Session established.</span>`;
+
+        updateCryptoInspector({
+          protocol_step: "KEM Handshake & HKDF Derivation",
+          kem_algorithm: pkData.algorithm,
+          server_pk: serverPkB64.substring(0, 32) + "...",
+          kem_ciphertext_ct: kemCtB64.substring(0, 48) + "...",
+          shared_secret_K: sharedSecretB64.substring(0, 32) + "...",
+          session_id: currentSessionId,
+          kdf: "HKDF-SHA256 (RFC 5869)",
+          status: "ESTABLISHED"
+        });
+      } else {
+        document.getElementById('sessionStatusBadge').className = 'badge badge-danger';
+        document.getElementById('sessionStatusBadge').innerText = 'Handshake Failed';
+        resDiv.innerHTML = `<span style="color: var(--danger);">${hsData.error}</span>`;
+      }
+    }
+
+    // Step 3: Encrypted Query
+    async function sendEncryptedQuery() {
+      if (!currentSessionId || !sharedSecretB64) {
+        alert('Please complete the KEM handshake first to establish a secure channel.');
+        return;
+      }
+
+      const text = document.getElementById('queryText').value.trim();
+      if (!text) {
+        alert('Please enter some text to classify.');
+        return;
+      }
+      lastQueryText = text;
+
+      clientSeq += 1;
+      const plaintextJson = JSON.stringify({ x: text });
+
+      // Client encrypts with ChaCha20-Poly1305 using sequence counter
+      const encRes = await fetch('/api/client_helper/encrypt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: currentSessionId,
+          shared_secret_b64: sharedSecretB64,
+          plaintext: plaintextJson,
+          seq: clientSeq
+        })
+      });
+      const encData = await encRes.json();
+      const clientPacket = encData.packet;
+
+      updateCryptoInspector({
+        operation: "Encrypted Query (Client -> Server)",
+        session_id: currentSessionId,
+        seq: clientPacket.seq,
+        nonce: clientPacket.nonce,
+        aead_cipher: "ChaCha20-Poly1305 (RFC 8439)",
+        ciphertext_and_tag: clientPacket.ciphertext.substring(0, 60) + "...",
+        associated_data: `${currentSessionId}:${clientPacket.seq}:CLIENT`
+      });
+
+      // Send to server
+      const queryRes = await fetch('/api/model/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(clientPacket)
+      });
+      const queryData = await queryRes.json();
+
+      if (queryData.success) {
+        const respPacket = queryData.packet;
+
+        // Decrypt response packet using client helper
+        const decRes = await fetch('/api/client_helper/decrypt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: currentSessionId,
+            shared_secret_b64: sharedSecretB64,
+            packet: respPacket
+          })
+        });
+        const decData = await decRes.json();
+        const pred = JSON.parse(decData.plaintext);
+        lastPredictionLabel = pred.prediction;
+
+        // Render prediction
+        const resCard = document.getElementById('queryResultCard');
+        resCard.style.display = 'block';
+        document.getElementById('modelVerBadge').innerText = 'v' + pred.version;
+        const predLabelEl = document.getElementById('predLabel');
+        predLabelEl.innerText = pred.prediction;
+        predLabelEl.style.color = pred.class_id === 1 ? 'var(--danger)' : 'var(--success)';
+        document.getElementById('predConf').innerText = pred.confidence + '%';
+        document.getElementById('predProb').innerText = pred.spam_probability + '%';
+
+        // Enable feedback card
+        const fbCard = document.getElementById('feedbackCard');
+        fbCard.style.opacity = '1';
+        fbCard.style.pointerEvents = 'auto';
+
+        updateCryptoInspector({
+          operation: "Encrypted Response (Server -> Client)",
+          server_seq: respPacket.seq,
+          server_nonce: respPacket.nonce,
+          decrypted_payload: pred
+        });
+      } else {
+        alert('Query failed: ' + queryData.error);
+      }
+    }
+
+    // Step 4: Submit Labeled Feedback
+    async function sendEncryptedFeedback() {
+      if (!currentSessionId || !sharedSecretB64) return;
+
+      const f = document.getElementById('feedbackLabel').value;
+      const rating = document.getElementById('feedbackRating').value;
+      const resDiv = document.getElementById('feedbackResult');
+
+      clientSeq += 1;
+      const feedbackPayload = JSON.stringify({
+        x: lastQueryText,
+        y: lastPredictionLabel,
+        f: parseInt(f),
+        rating: rating
+      });
+
+      const encRes = await fetch('/api/client_helper/encrypt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: currentSessionId,
+          shared_secret_b64: sharedSecretB64,
+          plaintext: feedbackPayload,
+          seq: clientSeq
+        })
+      });
+      const encData = await encRes.json();
+
+      const fbRes = await fetch('/api/model/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(encData.packet)
+      });
+      const fbData = await fbRes.json();
+
+      if (fbData.success) {
+        resDiv.innerHTML = '<span style="color: var(--success);">&#10004; Feedback securely encrypted and stored for model update D\'.</span>';
+      } else {
+        resDiv.innerHTML = `<span style="color: var(--danger);">Feedback failed: ${fbData.error}</span>`;
+      }
+    }
+
+    // Terminate Session
+    async function terminateSession() {
+      if (!currentSessionId) return;
+      await fetch('/api/session/terminate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: currentSessionId })
+      });
+
+      // Client-side zeroization
+      currentSessionId = null;
+      sharedSecretB64 = null;
+      clientSeq = 0;
+
+      document.getElementById('sessionStatusBadge').className = 'badge badge-warning';
+      document.getElementById('sessionStatusBadge').innerText = 'Terminated & Keys Zeroized';
+      document.getElementById('sessionInfoText').innerText = 'Session memory wiped clean.';
+      document.getElementById('btnTerminateSession').style.display = 'none';
+      document.getElementById('feedbackCard').style.opacity = '0.5';
+      document.getElementById('feedbackCard').style.pointerEvents = 'none';
+
+      updateCryptoInspector({
+        status: "ZEROIZED",
+        message: "Session keys overwritten in memory. Session terminated."
+      });
+    }
+
+    window.addEventListener('load', () => {
+      if (currentUid) {
+        document.getElementById('loginUid').value = currentUid;
+      }
+    });
+  </script>
+</body>
+</html>

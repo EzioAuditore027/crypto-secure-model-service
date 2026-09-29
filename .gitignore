@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Databases & local state
+*.sqlite3
+*.db
+server_keys.json
+client_keys.json
+
+# Trained model checkpoints (transient)
+models/transient_*.pkl
+
+# Environments
+.env
+.venv
+env/
+venv/
+
+# IDE & Editor caches
+.vscode/
+.idea/
+*.swp
+*.DS_Store

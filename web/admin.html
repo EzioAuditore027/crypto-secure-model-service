@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Owner / Admin Portal - Secure Model Service</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <a href="/" class="brand">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+      </svg>
+      Owner / <span>Admin Dashboard</span>
+    </a>
+    <nav class="nav-links">
+      <a href="/admin" class="nav-link active">Admin Portal</a>
+      <a href="/user" class="nav-link">User Portal</a>
+      <a href="/" class="nav-link">Home</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <!-- Top Model Status Bar -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">Deployed Model Status: <span id="activeModelVersion" style="color: var(--primary);">v1.0</span></h2>
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">
+            Serving: Lightweight NLP Phishing/Spam Classifier &bull; Active Sessions: <span id="activeSessionsCount">0</span>
+          </div>
+        </div>
+        <button id="btnRebuildModel" class="btn btn-success" onclick="triggerRebuildModel()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+          Rebuild & Deploy Model M'
+        </button>
+      </div>
+      <div id="rebuildStatusMsg" style="display: none; padding: 0.75rem; border-radius: 6px; font-size: 0.9rem;"></div>
+    </div>
+
+    <!-- User Management Section -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Pending User Approvals (ApproveUser / RemoveUser)</h2>
+        <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;" onclick="loadUsers()">Refresh</button>
+      </div>
+      <div style="overflow-x: auto;">
+        <table id="pendingUsersTable">
+          <thead>
+            <tr>
+              <th>UID</th>
+              <th>Username</th>
+              <th>Status</th>
+              <th>Registered Time</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Loading pending registrations...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- All Users Directory -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Authorized Users Directory</h2>
+      </div>
+      <div style="overflow-x: auto;">
+        <table id="allUsersTable">
+          <thead>
+            <tr>
+              <th>UID</th>
+              <th>Username</th>
+              <th>Access Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Loading users...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Feedback & Retraining Data View (ViewNewData / DownloadNewData) -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">Collected Feedback Dataset D' (ViewNewData)</h2>
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">
+            Data gathered from authorized user inference queries and feedback
+          </div>
+        </div>
+        <button class="btn btn-secondary" onclick="exportDataJson()">Download D' (JSON)</button>
+      </div>
+      <div style="overflow-x: auto;">
+        <table id="feedbackTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>User UID</th>
+              <th>Queried Input (x)</th>
+              <th>Model Output (y)</th>
+              <th>Corrected Label (f)</th>
+              <th>Rating</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No feedback records found yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    async function loadModelInfo() {
+      try {
+        const res = await fetch('/api/model/info');
+        const data = await res.json();
+        document.getElementById('activeModelVersion').innerText = 'v' + data.active_version;
+        document.getElementById('activeSessionsCount').innerText = data.active_sessions;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function loadUsers() {
+      try {
+        const res = await fetch('/api/admin/all_users');
+        const data = await res.json();
+        const users = data.users || [];
+
+        const pending = users.filter(u => u.status === 'pending');
+        const pendingTbody = document.querySelector('#pendingUsersTable tbody');
+        if (pending.length === 0) {
+          pendingTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No pending approval requests.</td></tr>';
+        } else {
+          pendingTbody.innerHTML = pending.map(u => `
+            <tr>
+              <td><code>${u.uid}</code></td>
+              <td><strong>${u.username}</strong></td>
+              <td><span class="badge badge-warning">${u.status}</span></td>
+              <td>${new Date(u.created_at * 1000).toLocaleString()}</td>
+              <td>
+                <button class="btn btn-success" style="padding: 0.3rem 0.7rem; font-size: 0.8rem;" onclick="approveUser('${u.uid}')">Approve</button>
+                <button class="btn btn-danger" style="padding: 0.3rem 0.7rem; font-size: 0.8rem; margin-left: 0.5rem;" onclick="revokeUser('${u.uid}')">Reject</button>
+              </td>
+            </tr>
+          `).join('');
+        }
+
+        const allTbody = document.querySelector('#allUsersTable tbody');
+        allTbody.innerHTML = users.map(u => {
+          let badgeClass = 'badge-info';
+          if (u.status === 'approved') badgeClass = 'badge-success';
+          if (u.status === 'revoked') badgeClass = 'badge-danger';
+          if (u.status === 'pending') badgeClass = 'badge-warning';
+
+          const actionBtn = u.status === 'approved' 
+            ? `<button class="btn btn-danger" style="padding: 0.3rem 0.7rem; font-size: 0.8rem;" onclick="revokeUser('${u.uid}')">Revoke Access</button>`
+            : `<button class="btn btn-success" style="padding: 0.3rem 0.7rem; font-size: 0.8rem;" onclick="approveUser('${u.uid}')">Reinstate</button>`;
+
+          return `
+            <tr>
+              <td><code>${u.uid}</code></td>
+              <td>${u.username}</td>
+              <td><span class="badge ${badgeClass}">${u.status}</span></td>
+              <td>${actionBtn}</td>
+            </tr>
+          `;
+        }).join('');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function approveUser(uid) {
+      const res = await fetch('/api/admin/approve_user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid })
+      });
+      await loadUsers();
+    }
+
+    async function revokeUser(uid) {
+      const res = await fetch('/api/admin/revoke_user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid })
+      });
+      await loadUsers();
+      await loadModelInfo();
+    }
+
+    async function loadFeedback() {
+      try {
+        const res = await fetch('/api/admin/view_data');
+        const data = await res.json();
+        const records = data.data || [];
+        const tbody = document.querySelector('#feedbackTable tbody');
+        if (records.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No feedback records found yet.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = records.map(r => `
+          <tr>
+            <td>#${r.id}</td>
+            <td><code>${r.uid}</code></td>
+            <td style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${r.query_text}">${r.query_text}</td>
+            <td>${r.prediction}</td>
+            <td><span class="badge ${r.feedback_label === 1 ? 'badge-danger' : 'badge-success'}">${r.feedback_label === 1 ? 'Phishing' : 'Legitimate'}</span></td>
+            <td>${r.rating || 'N/A'}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function triggerRebuildModel() {
+      const btn = document.getElementById('btnRebuildModel');
+      const msg = document.getElementById('rebuildStatusMsg');
+      btn.disabled = true;
+      btn.innerText = 'Retraining & Encapsulating...';
+      msg.style.display = 'block';
+      msg.style.backgroundColor = 'rgba(56, 189, 248, 0.1)';
+      msg.style.color = 'var(--primary)';
+      msg.innerText = 'Executing RebuildModel(D, D\') with augmented dataset...';
+
+      try {
+        const res = await fetch('/api/admin/rebuild_model', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          msg.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+          msg.style.color = 'var(--success)';
+          msg.innerText = `Success: Model updated to version ${data.version} incorporating ${data.feedback_count} feedback samples.`;
+          await loadModelInfo();
+        } else {
+          msg.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+          msg.style.color = 'var(--danger)';
+          msg.innerText = 'Failed to rebuild model: ' + data.error;
+        }
+      } catch (err) {
+        msg.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+        msg.style.color = 'var(--danger)';
+        msg.innerText = 'Error: ' + err.message;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg> Rebuild & Deploy Model M'`;
+      }
+    }
+
+    async function exportDataJson() {
+      const res = await fetch('/api/admin/view_data');
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'feedback_dataset_D_prime.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Auto-refresh interval
+    window.addEventListener('load', () => {
+      loadModelInfo();
+      loadUsers();
+      loadFeedback();
+      setInterval(() => {
+        loadModelInfo();
+        loadUsers();
+        loadFeedback();
+      }, 5000);
+    });
+  </script>
+</body>
+</html>

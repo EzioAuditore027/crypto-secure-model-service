@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cryptography-Based Secure Model Service</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <a href="/" class="brand">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+      </svg>
+      Secure<span>ModelService</span>
+    </a>
+    <nav class="nav-links">
+      <a href="/admin" class="nav-link">Owner / Admin</a>
+      <a href="/user" class="nav-link">Authorized User</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <div style="text-align: center; margin: 3rem 0;">
+      <span class="badge badge-info" style="margin-bottom: 1rem;">DSC4110 / DSC6111 Assignment Project</span>
+      <h1 style="font-size: 2.5rem; margin-bottom: 1rem;">Cryptography-Based Secure Model Service</h1>
+      <p style="color: var(--text-muted); max-width: 700px; margin: 0 auto; line-height: 1.6;">
+        An end-to-end cryptographic client-server architecture serving a machine learning classifier with Post-Quantum Key Encapsulation (Lattice-KEM), HKDF key derivation, AEAD authenticated encryption, anti-replay guards, and continuous model updating.
+      </p>
+    </div>
+
+    <div class="grid-2">
+      <!-- Admin Portal Card -->
+      <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <div class="card-header">
+            <h2 class="card-title">1. Owner / Admin Application</h2>
+            <span class="badge badge-warning">Management</span>
+          </div>
+          <p style="color: var(--text-muted); margin-bottom: 1rem; line-height: 1.5;">
+            Manages model lifecycle, reviews registration requests, monitors user feedback data, and triggers continuous retraining.
+          </p>
+          <ul style="color: var(--text-muted); margin-left: 1.5rem; margin-bottom: 1.5rem; line-height: 1.8;">
+            <li><code>BuildModel(D) &rarr; M</code>: Initial model training & deployment</li>
+            <li><code>ApproveUser(UID)</code>: Authorize or revoke user access</li>
+            <li><code>ViewNewData()</code> & <code>DownloadNewData() &rarr; D'</code></li>
+            <li><code>RebuildModel(D, D') &rarr; M'</code>: Incremental model fine-tuning</li>
+          </ul>
+        </div>
+        <a href="/admin" class="btn" style="text-decoration: none; justify-content: center;">
+          Launch Owner Portal &rarr;
+        </a>
+      </div>
+
+      <!-- User Portal Card -->
+      <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <div class="card-header">
+            <h2 class="card-title">2. Authorized User Application</h2>
+            <span class="badge badge-success">Client Portal</span>
+          </div>
+          <p style="color: var(--text-muted); margin-bottom: 1rem; line-height: 1.5;">
+            Interacts with the server over an authenticated, end-to-end encrypted channel protected by Post-Quantum KEM and AEAD.
+          </p>
+          <ul style="color: var(--text-muted); margin-left: 1.5rem; margin-bottom: 1.5rem; line-height: 1.8;">
+            <li><code>RequestForRegistration()</code>: Submit public key & credentials</li>
+            <li><code>KEM Handshake</code>: Fresh shared session key establishment</li>
+            <li><code>Query(x) &rarr; y</code>: Confidential, integrity-checked inference</li>
+            <li><code>SubmitFeedback(f)</code>: Provide labeled correction for model update</li>
+          </ul>
+        </div>
+        <a href="/user" class="btn" style="text-decoration: none; justify-content: center;">
+          Launch User Portal &rarr;
+        </a>
+      </div>
+    </div>
+
+    <!-- Cryptographic Architecture Summary -->
+    <div class="card" style="margin-top: 2rem;">
+      <div class="card-header">
+        <h3 class="card-title">Cryptographic Protocol Pipeline</h3>
+        <span class="badge badge-info">RFC 5869 & RFC 8439</span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; text-align: center;">
+        <div style="background: var(--code-bg); padding: 1rem; border-radius: 8px;">
+          <div style="color: var(--primary); font-weight: bold; margin-bottom: 0.5rem;">1. Key Encapsulation</div>
+          <div style="font-size: 0.85rem; color: var(--text-muted);">Lattice-KEM (Kyber-style LWE) or X25519 creates ephemeral shared secret K</div>
+        </div>
+        <div style="background: var(--code-bg); padding: 1rem; border-radius: 8px;">
+          <div style="color: var(--primary); font-weight: bold; margin-bottom: 0.5rem;">2. Key Derivation</div>
+          <div style="font-size: 0.85rem; color: var(--text-muted);">HKDF-SHA256 derives directional keys: K_client, K_server, IV salts</div>
+        </div>
+        <div style="background: var(--code-bg); padding: 1rem; border-radius: 8px;">
+          <div style="color: var(--primary); font-weight: bold; margin-bottom: 0.5rem;">3. AEAD Encryption</div>
+          <div style="font-size: 0.85rem; color: var(--text-muted);">ChaCha20-Poly1305 ensures confidentiality & tamper-proof authenticity</div>
+        </div>
+        <div style="background: var(--code-bg); padding: 1rem; border-radius: 8px;">
+          <div style="color: var(--primary); font-weight: bold; margin-bottom: 0.5rem;">4. Anti-Replay Guard</div>
+          <div style="font-size: 0.85rem; color: var(--text-muted);">Strict monotonic sequence counters & unique 96-bit nonces per message</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    IISER Thiruvananthapuram &bull; Modern Cryptography and AI/ML Security &bull; Project 1
+  </footer>
+</body>
+</html>
